@@ -97,6 +97,15 @@ function createSectionHeader(iconName, titleText, subtitleText) {
     return box;
 }
 
+function createFieldLabel(text) {
+    return new Gtk.Label({
+        label: `<b>${text}</b>`,
+        use_markup: true,
+        halign: Gtk.Align.START,
+        visible: true,
+    });
+}
+
 function createTabLabel(iconName, text) {
     const box = new Gtk.Box({
         orientation: Gtk.Orientation.HORIZONTAL,
@@ -142,6 +151,11 @@ export default class DualClockPreferences extends ExtensionPreferences {
             margin_start: 12,
             margin_end: 12,
             visible: true,
+        });
+        outer.connect('map', widget => {
+            const root = widget.get_root();
+            root?.set_title?.('Settings');
+            root?.set_default_size?.(980, 1200);
         });
         const title = new Gtk.Label({
             label: `<b>${this.metadata.name}</b>`,
@@ -202,7 +216,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
         const secondMonitorRows = [];
 
         const addSpin = (grid, row, labelText, getter, setter, min, max, step, extraRows = null) => {
-            const label = new Gtk.Label({label: labelText, halign: Gtk.Align.START, visible: true});
+            const label = createFieldLabel(labelText);
             const spin = Gtk.SpinButton.new_with_range(min, max, step);
             spin.set_value(getter());
             spin.set_visible(true);
@@ -214,7 +228,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
         };
 
         const addFontButton = (grid, row, labelText, key) => {
-            const label = new Gtk.Label({label: labelText, halign: Gtk.Align.START, visible: true});
+            const label = createFieldLabel(labelText);
             const button = new Gtk.FontButton({visible: true, use_font: true, use_size: false});
             const current = settings.get_string(key);
             if (current)
@@ -228,7 +242,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
         };
 
         const addEntry = (grid, row, labelText, key, placeholder) => {
-            const label = new Gtk.Label({label: labelText, halign: Gtk.Align.START, visible: true});
+            const label = createFieldLabel(labelText);
             const entry = new Gtk.Entry({visible: true, placeholder_text: placeholder});
             entry.set_text(settings.get_string(key));
             entry.connect('changed', widget => settings.set_string(key, widget.get_text()));
@@ -237,7 +251,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
         };
 
         const addCombo = (grid, row, labelText, key, labels) => {
-            const label = new Gtk.Label({label: labelText, halign: Gtk.Align.START, visible: true});
+            const label = createFieldLabel(labelText);
             const combo = new Gtk.ComboBoxText({visible: true});
             labels.forEach((text, index) => combo.append(String(index), text));
             combo.set_active(settings.get_int(key));
@@ -254,7 +268,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
         addSpin(clockGrid, clockRow++, 'Ecran 1 : offset droite', () => settings.get_int('offset-right'), value => settings.set_int('offset-right', value), 0, 2000, 5);
         addSpin(clockGrid, clockRow++, 'Ecran 1 : offset bas', () => settings.get_int('offset-bottom'), value => settings.set_int('offset-bottom', value), 0, 2000, 5);
 
-        const sameLabel = new Gtk.Label({label: 'Memes reglages sur les 2 ecrans', halign: Gtk.Align.START, visible: true});
+        const sameLabel = createFieldLabel('Memes reglages sur les 2 ecrans');
         const sameSwitch = createSwitch(settings.get_boolean('same-on-both-monitors'), widget => {
             const active = widget.get_active();
             settings.set_boolean('same-on-both-monitors', active);
@@ -271,7 +285,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
         addFontButton(clockGrid, clockRow++, 'Typo date', 'date-font-family');
         addSpin(clockGrid, clockRow++, 'Decalage horizontal 2e ligne', () => settings.get_int('date-offset-x'), value => settings.set_int('date-offset-x', value), -1000, 1000, 5);
 
-        const colorAutoLabel = new Gtk.Label({label: 'Couleur auto noir/blanc selon le fond', halign: Gtk.Align.START, visible: true});
+        const colorAutoLabel = createFieldLabel('Couleur auto noir/blanc selon le fond');
         const colorAutoSwitch = createSwitch(settings.get_boolean('auto-text-color'), widget => settings.set_boolean('auto-text-color', widget.get_active()));
         clockGrid.attach(colorAutoLabel, 0, clockRow, 1, 1);
         clockGrid.attach(colorAutoSwitch, 1, clockRow, 1, 1);
@@ -279,7 +293,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
 
         addEntry(clockGrid, clockRow++, 'Couleur manuelle (#rrggbb)', 'manual-text-color', '#ffffff');
 
-        const orderLabel = new Gtk.Label({label: 'Heure au-dessus de la date', halign: Gtk.Align.START, visible: true});
+        const orderLabel = createFieldLabel('Heure au-dessus de la date');
         const orderSwitch = createSwitch(settings.get_boolean('date-below-clock'), widget => settings.set_boolean('date-below-clock', widget.get_active()));
         clockGrid.attach(orderLabel, 0, clockRow, 1, 1);
         clockGrid.attach(orderSwitch, 1, clockRow, 1, 1);
@@ -296,7 +310,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
             'Lundi, Mai 11',
             'Lundi 11 Mai',
             'Lun 11 Mai',
-            '11 May',
+            '11 Mai',
             '11/05/2026',
             'Lundi 11 Mai 2026',
             '11.05.2026',
@@ -313,10 +327,10 @@ export default class DualClockPreferences extends ExtensionPreferences {
         wallpaperContent.append(wallpaperGrid);
 
         let wallpaperRow = 0;
-        const wallpaperStatus = new Gtk.Label({label: '', halign: Gtk.Align.START, visible: true});
+        const wallpaperStatus = new Gtk.Label({label: '', halign: Gtk.Align.START, wrap: true, visible: true});
         const runWallpaperCommand = argv => {
             const result = runCommand(argv);
-            wallpaperStatus.set_text(result.ok ? result.message : `Error: ${result.message}`);
+            wallpaperStatus.set_text(result.ok ? result.message : `Erreur : ${result.message}`);
             return result;
         };
 
@@ -332,11 +346,11 @@ export default class DualClockPreferences extends ExtensionPreferences {
                 fill_color: fillCombo.get_active_id() || 'black',
             };
             saveWallpaperConfig(updated);
-            wallpaperStatus.set_text('Wallpaper settings saved.');
+            wallpaperStatus.set_text('Reglages des fonds enregistres.');
         };
 
         const chooseFolder = entry => {
-            const dialog = Gtk.FileChooserNative.new('Choose folder', outer.get_root(), Gtk.FileChooserAction.SELECT_FOLDER, 'Choose', 'Cancel');
+            const dialog = Gtk.FileChooserNative.new('Choisir un dossier', outer.get_root(), Gtk.FileChooserAction.SELECT_FOLDER, 'Choisir', 'Annuler');
             dialog.connect('response', (_d, response) => {
                 if (response === Gtk.ResponseType.ACCEPT) {
                     const file = dialog.get_file();
@@ -349,19 +363,19 @@ export default class DualClockPreferences extends ExtensionPreferences {
         };
 
         const addWallpaperEntry = (row, labelText, entry, choose = false) => {
-            const label = new Gtk.Label({label: labelText, halign: Gtk.Align.START, visible: true});
+            const label = createFieldLabel(labelText);
             wallpaperGrid.attach(label, 0, row, 1, 1);
             wallpaperGrid.attach(entry, 1, row, 1, 1);
             if (choose) {
-                const button = new Gtk.Button({label: 'Choose...', visible: true});
+                const button = new Gtk.Button({label: 'Choisir...', visible: true});
                 button.connect('clicked', () => chooseFolder(entry));
                 wallpaperGrid.attach(button, 2, row, 1, 1);
             }
         };
 
         const modeCombo = new Gtk.ComboBoxText({visible: true});
-        modeCombo.append('shared', 'One folder for both monitors');
-        modeCombo.append('split', 'One folder per monitor');
+        modeCombo.append('shared', 'Un dossier pour les 2 ecrans');
+        modeCombo.append('split', 'Un dossier par ecran');
         modeCombo.set_active_id(wallpaperConfig.mode);
 
         const primaryEntry = new Gtk.Entry({text: wallpaperConfig.primary_folder, visible: true});
@@ -378,7 +392,8 @@ export default class DualClockPreferences extends ExtensionPreferences {
 
         addWallpaperEntry(wallpaperRow++, 'Mode', modeCombo, false);
         addWallpaperEntry(wallpaperRow++, 'Dossier ecran 1', primaryEntry, true);
-        const secondaryLabel = new Gtk.Label({label: 'Dossier ecran 2', halign: Gtk.Align.START, visible: wallpaperConfig.mode === 'split'});
+        const secondaryLabel = createFieldLabel('Dossier ecran 2');
+        secondaryLabel.set_visible(wallpaperConfig.mode === 'split');
         wallpaperGrid.attach(secondaryLabel, 0, wallpaperRow, 1, 1);
         wallpaperGrid.attach(secondaryEntry, 1, wallpaperRow, 1, 1);
         const secondaryButton = new Gtk.Button({label: 'Choose...', visible: wallpaperConfig.mode === 'split'});
@@ -393,22 +408,22 @@ export default class DualClockPreferences extends ExtensionPreferences {
             secondaryButton.set_visible(split);
         });
 
-        const differentLabel = new Gtk.Label({label: 'Forcer des images differentes', halign: Gtk.Align.START, visible: true});
+        const differentLabel = createFieldLabel('Forcer des images differentes');
         wallpaperGrid.attach(differentLabel, 0, wallpaperRow, 1, 1);
         wallpaperGrid.attach(differentSwitch, 1, wallpaperRow, 1, 1);
         wallpaperRow += 1;
 
-        const recursiveLabel = new Gtk.Label({label: 'Recherche recursive', halign: Gtk.Align.START, visible: true});
+        const recursiveLabel = createFieldLabel('Recherche recursive');
         wallpaperGrid.attach(recursiveLabel, 0, wallpaperRow, 1, 1);
         wallpaperGrid.attach(recursiveSwitch, 1, wallpaperRow, 1, 1);
         wallpaperRow += 1;
 
-        const intervalLabel = new Gtk.Label({label: 'Intervalle (minutes)', halign: Gtk.Align.START, visible: true});
+        const intervalLabel = createFieldLabel('Intervalle (minutes)');
         wallpaperGrid.attach(intervalLabel, 0, wallpaperRow, 1, 1);
         wallpaperGrid.attach(intervalSpin, 1, wallpaperRow, 1, 1);
         wallpaperRow += 1;
 
-        const fillLabel = new Gtk.Label({label: 'Couleur de remplissage', halign: Gtk.Align.START, visible: true});
+        const fillLabel = createFieldLabel('Couleur de remplissage');
         wallpaperGrid.attach(fillLabel, 0, wallpaperRow, 1, 1);
         wallpaperGrid.attach(fillCombo, 1, wallpaperRow, 1, 1);
         wallpaperRow += 1;
