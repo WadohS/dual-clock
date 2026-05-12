@@ -7,6 +7,7 @@ import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/
 const WALLPAPER_CONFIG_DIR = GLib.build_filenamev([GLib.get_home_dir(), '.config', 'dual-wallpaper']);
 const WALLPAPER_CONFIG_PATH = GLib.build_filenamev([WALLPAPER_CONFIG_DIR, 'config.json']);
 const WALLPAPER_CLI = GLib.build_filenamev([GLib.get_home_dir(), '.local', 'share', 'dual-wallpaper', 'dual_wallpaper.py']);
+const XRANDR = '/usr/bin/xrandr';
 
 const WALLPAPER_DEFAULTS = {
     mode: 'shared',
@@ -53,6 +54,36 @@ function runCommand(argv) {
         };
     } catch (error) {
         return {ok: false, message: `${error}`};
+    }
+}
+
+function detectMonitors() {
+    try {
+        const result = runCommand([XRANDR, '--query']);
+        if (!result.ok)
+            return [];
+
+        const monitors = [];
+        for (const line of result.message.split('\n')) {
+            if (!line.includes(' connected'))
+                continue;
+
+            const parts = line.trim().split(/\s+/);
+            const name = parts[0];
+            const geometry = parts.find(part => /\d+x\d+\+\d+\+\d+/.test(part));
+            if (!geometry)
+                continue;
+
+            const [widthPart, rest] = geometry.split('x', 2);
+            const [heightPart] = rest.split('+', 1);
+            const width = Number.parseInt(widthPart, 10);
+            const height = Number.parseInt(heightPart, 10);
+            const ratio = (width / height).toFixed(2);
+            monitors.push({name, width, height, ratio});
+        }
+        return monitors;
+    } catch (_error) {
+        return [];
     }
 }
 
@@ -142,6 +173,7 @@ export default class DualClockPreferences extends ExtensionPreferences {
     getPreferencesWidget() {
         const settings = this.getSettings();
         const wallpaperConfig = ensureWallpaperConfig();
+        const monitorGrids = detectMonitors();
 
         const outer = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
@@ -229,13 +261,15 @@ export default class DualClockPreferences extends ExtensionPreferences {
 
         const addFontButton = (grid, row, labelText, key) => {
             const label = createFieldLabel(labelText);
-            const button = new Gtk.FontButton({visible: true, use_font: true, use_size: false});
+            const button = new Gtk.FontButton({visible: true, use_font: false, use_size: false});
             const current = settings.get_string(key);
             if (current)
                 button.set_font(current);
+            button.set_halign(Gtk.Align.START);
+            button.set_hexpand(false);
+            button.set_size_request(220, -1);
             button.connect('font-set', widget => {
-                const desc = Pango.FontDescription.from_string(widget.get_font());
-                settings.set_string(key, desc.get_family() ?? '');
+                settings.set_string(key, widget.get_font());
             });
             grid.attach(label, 0, row, 1, 1);
             grid.attach(button, 1, row, 1, 1);
@@ -265,8 +299,19 @@ export default class DualClockPreferences extends ExtensionPreferences {
                 widget.set_visible(visible);
         };
 
-        addSpin(clockGrid, clockRow++, 'Ecran 1 : offset droite', () => settings.get_int('offset-right'), value => settings.set_int('offset-right', value), 0, 2000, 5);
-        addSpin(clockGrid, clockRow++, 'Ecran 1 : offset bas', () => settings.get_int('offset-bottom'), value => settings.set_int('offset-bottom', value), 0, 2000, 5);
+        const monitor1 = monitorGrids[0];
+        const monitor2 = monitorGrids[1];
+        const monitor1Label = new Gtk.Label({
+            label: monitor1 ? `Ecran 1 detecte : ${monitor1.name} ${monitor1.width}x${monitor1.height} (${monitor1.ratio})` : 'Ecran 1 detecte',
+            halign: Gtk.Align.START,
+            visible: true,
+        });
+        clockGrid.attach(monitor1Label, 0, clockRow++, 2, 1);
+
+        addSpin(clockGrid, clockRow++, 'Ecran 1 : position horizontale (%)', () => settings.get_int('position-x'), value => settings.set_int('position-x', value), 0, 100, 1);
+        addSpin(clockGrid, clockRow++, 'Ecran 1 : position verticale (%)', () => settings.get_int('position-y'), value => settings.set_int('position-y', value), 0, 100, 1);
+        addSpin(clockGrid, clockRow++, 'Ecran 1 : decalage horizontal bloc', () => settings.get_int('block-offset-x'), value => settings.set_int('block-offset-x', value), -2000, 2000, 5);
+        addSpin(clockGrid, clockRow++, 'Ecran 1 : decalage vertical bloc', () => settings.get_int('block-offset-y'), value => settings.set_int('block-offset-y', value), -2000, 2000, 5);
 
         const sameLabel = createFieldLabel('Memes reglages sur les 2 ecrans');
         const sameSwitch = createSwitch(settings.get_boolean('same-on-both-monitors'), widget => {
@@ -278,8 +323,19 @@ export default class DualClockPreferences extends ExtensionPreferences {
         clockGrid.attach(sameSwitch, 1, clockRow, 1, 1);
         clockRow += 1;
 
-        addSpin(clockGrid, clockRow++, 'Ecran 2 : offset droite', () => settings.get_int('offset-right-2'), value => settings.set_int('offset-right-2', value), 0, 2000, 5, secondMonitorRows);
-        addSpin(clockGrid, clockRow++, 'Ecran 2 : offset bas', () => settings.get_int('offset-bottom-2'), value => settings.set_int('offset-bottom-2', value), 0, 2000, 5, secondMonitorRows);
+        const monitor2InfoLabel = new Gtk.Label({
+            label: monitor2 ? `Ecran 2 detecte : ${monitor2.name} ${monitor2.width}x${monitor2.height} (${monitor2.ratio})` : 'Ecran 2 detecte',
+            halign: Gtk.Align.START,
+            visible: true,
+        });
+        clockGrid.attach(monitor2InfoLabel, 0, clockRow, 2, 1);
+        secondMonitorRows.push(monitor2InfoLabel);
+        clockRow += 1;
+
+        addSpin(clockGrid, clockRow++, 'Ecran 2 : position horizontale (%)', () => settings.get_int('position-x-2'), value => settings.set_int('position-x-2', value), 0, 100, 1, secondMonitorRows);
+        addSpin(clockGrid, clockRow++, 'Ecran 2 : position verticale (%)', () => settings.get_int('position-y-2'), value => settings.set_int('position-y-2', value), 0, 100, 1, secondMonitorRows);
+        addSpin(clockGrid, clockRow++, 'Ecran 2 : decalage horizontal bloc', () => settings.get_int('block-offset-x-2'), value => settings.set_int('block-offset-x-2', value), -2000, 2000, 5, secondMonitorRows);
+        addSpin(clockGrid, clockRow++, 'Ecran 2 : decalage vertical bloc', () => settings.get_int('block-offset-y-2'), value => settings.set_int('block-offset-y-2', value), -2000, 2000, 5, secondMonitorRows);
         addSpin(clockGrid, clockRow++, 'Agrandissement (%)', () => settings.get_int('scale-percent'), value => settings.set_int('scale-percent', value), 25, 400, 5);
         addFontButton(clockGrid, clockRow++, 'Typo heure', 'clock-font-family');
         addFontButton(clockGrid, clockRow++, 'Typo date', 'date-font-family');
